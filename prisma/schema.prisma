@@ -1,0 +1,27 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL") // ör: file:../dev.db
+}
+
+model Product {
+  id          String  @id
+  name        String
+  category    String
+  brand       String
+  price       Int
+  rating      Float?
+  weight_kg   Float?
+  cpu         String?
+
+  ram_gb      Int?
+  storage_gb  Int?
+  screen_inch Float?
+  battery_wh  Int?
+
+  image_url   String?
+}
