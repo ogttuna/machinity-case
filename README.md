@@ -1,289 +1,200 @@
-Aşağıdaki metin, GitHub’daki README.md dosyana doğrudan yapıştırman için hazırlanmış, ayrıntılı ve işverenlerin “case study” şeklinde okuyabileceği bir dokümantasyondur. Kod bloğu kullanmadım; her şey düz metin ve Markdown başlıklarıyla düzenli.
+
+---
 
 # Machinity Case — Next.js + TypeScript Ürün Kataloğu (AI Destekli)
 
-Bu proje, App Router kullanan Next.js (TypeScript) üzerinde, Zustand ile durum yönetimi ve Tailwind ile arayüz katmanına sahip bir ürün katalog uygulamasıdır. Uygulama; kategori/marka/fiyat gibi klasik filtrelerin yanında CPU, RAM, Depolama, Ekran, Batarya, Ağırlık gibi teknik filtreleri de destekler. Doğal dil (AI) ile arama yapabilir, tek ürün için yapay zekâ destekli kısa özet üretebilir ve iki ürünü akıllı biçimde karşılaştırabilir.
+Bu proje, **Next.js (App Router + TypeScript)** üzerinde inşa edilmiş bir ürün katalog uygulamasıdır. Uygulama; **Zustand** ile durum yönetimi, **Zod** ile doğrulama, **Tailwind + shadcn/ui** ile arayüz katmanı sunar.
 
-Uygulama veri katmanını esnek kurgular: varsayılan olarak JSON verisi ile çalışır (data/products.json) ve ileride USE\_DB=true ile Prisma/DB moduna geçirilecek şekilde konumlandırılmıştır.
+Öne çıkan farkı, klasik filtreleme ve sıralama yeteneklerinin yanında, **AI destekli doğal dil arama, tek ürün için kısa özet ve iki ürün için akıllı karşılaştırma** fonksiyonlarını da entegre etmiş olmasıdır.
 
----
-
-## İçindekiler
-
-1. Öne Çıkanlar
-2. Genel Mimarî
-3. Dizin Yapısı (Kaynak Dosyalar)
-4. Veri Modeli ve Doğrulama
-5. API Tasarımı ve Sözleşmeler
-6. İstemci (UI) Mimarisi ve Durum Yönetimi
-7. AI Entegrasyonu (Doğal Dil Filtreleme, Özet, Karşılaştırma)
-8. URL Senkronizasyonu ve Derin Bağlantılar
-9. Kullanıcı Akışları (Flow)
-10. Performans, Erişilebilirlik ve UX Notları
-11. Kurulum, Ortam Değişkenleri ve Çalıştırma
-12. Test ve Gözlemlenebilirlik
-13. Güvenlik ve Hata Yönetimi
-14. Bilinen Sınırlamalar
-15. Yol Haritası (Gelecek Geliştirmeler)
-16. Neden Bu Tasarım? (Karar Gerekçeleri)
+Veri katmanı esnektir: varsayılan olarak **JSON dosyası** kullanılır; `USE_DB=true` ile **Prisma + SQLite** tabanlı DB moduna geçilebilir.
 
 ---
 
-## 1) Öne Çıkanlar
+## Öne Çıkanlar
 
-• Çoklu filtreleme: kategori, marka, fiyat, RAM, depolama, CPU, ekran (inç), batarya (Wh), ağırlık (kg)
-• Favoriler: localStorage ile kalıcı, listede ayrı bir filtre modu ile kullanılabilir
-• Sıralama: alfabetik, fiyat (artan/azalan), puan (artan/azalan)
-• AI ile doğal dil arama: serbest metni uygulanabilir filtre şemasına çevirir
-• AI özet: tek ürün için kısa teknik özet + value for money derecelendirmesi
-• AI karşılaştırma: iki ürünü güçlü/zayıf yönleriyle kıyaslar
-• URL senkronizasyonu: filtre ve sıralama parametreleri adres çubuğunda izlenebilir
-• Veri katmanı esnek: JSON ile başlar, DB moduna evrilebilir
-
----
-
-## 2) Genel Mimarî
-
-Uygulama üç ana katmandan oluşur:
-
-• Veri Katmanı: data/products.json üzerinden çalışan basit bir depo (repo) yaklaşımı. Geliştirilebilir DB modu için server klasöründe adaptörler hazırlanmıştır.
-• API Katmanı: App Router altında app/api dizininde çalışan REST benzeri uçlar; filtreleme, istatistik, tekil ürün, doğal dil filtreleme ve AI fonksiyonlarını sunar.
-• İstemci Katmanı: Zustand tabanlı store’lar (filtreler, karşılaştırma sepeti, favoriler) ve bunları tüketen bileşenler (filter-panel, nl-search, product-card, topbar, vb.). UI Tailwind ile hızlı ve tutarlı biçimde stillenir.
+* Çoklu filtreleme: kategori, marka, fiyat, CPU, RAM, depolama, ekran (inç), batarya (Wh), ağırlık (kg)
+* Favoriler: `localStorage`’ta kalıcı, sekmeler arası senkronize
+* Karşılaştırma: en fazla iki ürün, AI destekli kıyaslama
+* Sıralama: alfabetik, fiyat (artan/azalan), puan (artan/azalan)
+* AI ile doğal dil arama: serbest metni normalize edip filtre şemasına çevirir
+* AI özet: tek ürün için kısa teknik özet ve value-for-money yorumu
+* AI karşılaştırma: iki ürünün güçlü/zayıf yönlerini kıyaslar
+* URL senkronizasyonu: filtre ve sıralama parametreleri adres çubuğuna yazılır, paylaşılabilir hale gelir
+* Veri katmanı esnek: JSON ile hızlı başlar, DB moduna geçmeye hazır
 
 ---
 
-## 3) Dizin Yapısı (Kaynak Dosyalar)
+## Genel Mimarî
 
-app/api/ai/compare/route.ts — POST /api/ai/compare (iki ürün karşılaştırma)
-app/api/ai/parse-filters/route.ts — POST /api/ai/parse-filters (doğal dil → filtre)
-app/api/ai/summarize/route.ts — POST /api/ai/summarize (tek ürün özeti)
+Uygulama üç ana katman üzerinde kurgulanmıştır:
 
-app/api/products/route.ts — GET /api/products (listeleme + çoklu filtre + sıralama + sayfalama)
-app/api/products/stats/route.ts — GET /api/products/stats (min/max, ayrık kümeler)
-app/api/products/\[id]/route.ts — GET /api/products/\:id (tekil ürün)
-
-app/product/\[id]/page.tsx — Ürün detay sayfası (server component)
-app/page.tsx — Ürün listesi + filtre paneli + sıralama + NLSearch + karşılaştırma akışı
-app/layout.tsx, app/globals.css — Genel iskelet ve stiller
-
-components/ai-summary-dialog.tsx — Tek ürün AI özeti için dialog
-components/compare-dialog.tsx — İki ürün AI karşılaştırma dialogu
-components/favorites-filter.tsx — Favori mod seçici (Hepsi / Sadece Favoriler / Favori Olmayanlar)
-components/filter-panel.tsx — Sol filtre paneli (desktop)
-components/nl-search.tsx — Doğal dil arama giriş bileşeni
-components/product-card.tsx — Ürün kartı
-components/sort-dropdown.tsx — Sıralama seçici
-components/topbar.tsx — Mobilde filtre çekmecesi ve temel aksiyonlar
-components/ui/\* — Basit ve yeniden kullanılabilir UI yardımcıları (button, dialog, checkbox, slider, vb.)
-
-data/products.json — Demo veri seti (ürünlerin teknik alanları burada)
-
-lib/ai/openrouter.ts — OpenRouter istemcisi ve istek/yanıt loglama (gün bazlı JSONL)
-lib/hooks/use-sync-filters-with-url.ts — Store ↔ URL arama parametreleri senkronizasyonu
-lib/schema.ts — Ortak Zod şemaları ve tipler
-lib/sort.ts — Sıralama yardımcıları
-lib/server/config.ts, prisma.ts, products-repo.ts — Konfigürasyon ve veri erişim katmanı (JSON/DB)
-lib/store/favorites.ts, product-stats.ts — Favoriler ve istatistikler için client-side store’lar
-lib/utils.ts — Yardımcı fonksiyonlar (ör. cn)
-
-state/useFilters.ts — Tüm filtre/sıralama/sayfalama state’i ve aksiyonları
-state/useCompare.ts — Karşılaştırma sepeti (maksimum iki ürün)
+* **Veri Katmanı**: JSON dosyası veya Prisma aracılığıyla DB. Tek bir “repo” soyutlaması sayesinde JSON ↔ DB arasında şeffaf geçiş yapılabilir.
+* **API Katmanı**: App Router altında REST benzeri uçlar. Ürün listeleme, istatistik, tekil ürün, doğal dil filtreleme ve AI özet/karşılaştırma fonksiyonlarını içerir.
+* **İstemci Katmanı**: Zustand tabanlı store’lar (filtre, karşılaştırma, favoriler, istatistikler) ile çalışan bileşenler. Arayüz Tailwind + shadcn/ui ile inşa edilmiştir.
 
 ---
 
-## 4) Veri Modeli ve Doğrulama
+## Veri Modeli ve Doğrulama
 
-Ürün modeli temel alanlar: id, name, category, brand, price, rating, cpu, ram\_gb, storage\_gb, screen\_inch, battery\_wh, weight\_kg, image (opsiyonel).
-Doğrulama ve tip güvenliği Zod ile sağlanır (lib/schema.ts). API çıkışları ve iç akışlar, mümkün olduğunca Zod şemalarından türetilen tiplerle çalışır; bu sayede hem API sözleşmesi hem de istemci tarafı kullanan bileşenler tip güvenli kalır.
+Ürün modeli şu teknik alanları kapsar:
 
-İstatistikler (app/api/products/stats): minPrice, maxPrice, ayrık kümeler (categories, brands, ramValues, storageValues, cpuValues) ve aralıklar (screen, battery, weight). Filtre paneli bu uçtan dönen tek otorite kaynağı ile doldurulur.
+* id, name, category, brand, price
+* cpu, ram\_gb, storage\_gb
+* screen\_inch, battery\_wh, weight\_kg
+* rating (opsiyonel), image (opsiyonel)
 
----
+Tüm veriler **Zod şemaları** ile doğrulanır. API giriş/çıkışları tip güvenli hale gelir.
 
-## 5) API Tasarımı ve Sözleşmeler
-
-GET /api/products
-Amaç: Ürün listesini filtreler ve sıralama ile döndürmek.
-Desteklenen query parametreleri:
-• category (birden çok olabilir)
-• brand (birden çok olabilir)
-• ram (örnek: 8, 16, 32; birden çok olabilir)
-• storage (örnek: 256, 512, 1024; birden çok olabilir)
-• cpu (örnek: Intel i5, AMD Ryzen 5; birden çok olabilir)
-• minPrice, maxPrice
-• screenMin, screenMax (inç)
-• batteryMin, batteryMax (Wh)
-• weightMin, weightMax (kg)
-• sort (alphabetical | price-asc | price-desc | rating-asc | rating-desc)
-• page, pageSize
-
-Yanıt: items (Product\[]), total, page, pageSize, hasNextPage.
-
-GET /api/products/\:id
-Amaç: Tekil ürün bilgisini döndürmek.
-
-GET /api/products/stats
-Amaç: Filtre paneli için min/max ve ayrık değer kümelerini döndürmek (tek otorite kaynak).
-
-POST /api/ai/parse-filters
-Amaç: Kullanıcının doğal dilde yazdığı metni uygulanabilir filtre şemasına çevirmek.
-Girdi: text alanı (ör. “15-20 bin, 16GB RAM, 512 depolama, i5 ya da Ryzen 5, puanı yükseğe göre sırala”).
-Çıktı: kategoriler, markalar, price aralığı, ram\_gb, storage\_gb, screen\_inch, battery\_wh, weight\_kg, cpus\[], sort gibi normalize edilmiş bir filtre objesi. Zod ile doğrulanır.
-
-POST /api/ai/summarize
-Amaç: Tek ürün için kısa teknik özet ve value\_for\_money yorumu üretmek.
-Girdi: productIds alanında tek ID.
-Çıktı: item (ürün teknik bilgileri ve artı/eksi maddeleri) + summary (tldr ve value\_for\_money gibi alanlar).
-
-POST /api/ai/compare
-Amaç: İki ürünü teknik alanlara göre kıyaslamak, artı/eksi listeleri ve kısa özet üretmek.
-Girdi: productIds alanında iki ID.
-Çıktı: comparison (iki ürünle ilgili özet blokları) + summary (tldr ve value\_for\_money).
+İstatistik uçları (`/api/products/stats`), filtre paneli için tek otorite kaynağıdır. Dönen veri, fiyat aralığı + ayrık değer kümeleri (kategori, marka, ram, storage, cpu) + aralıklar (ekran, batarya, ağırlık) içerir.
 
 ---
 
-## 6) İstemci (UI) Mimarisi ve Durum Yönetimi
+## API Tasarımı
 
-Durum Yönetimi (Zustand):
-• useFilters.ts: Seçili kategoriler/markalar/ram/storage/cpu, aralık filtreleri (fiyat, ekran, batarya, ağırlık), sıralama ve sayfalama; ayrıca applyFromAI aksiyonu ile doğal dilden gelen şema store’a uygulanır.
-• useCompare.ts: Karşılaştırma sepeti (maksimum iki ürün).
-• favorites.ts: Favoriler (localStorage’ta kalıcı), hydrate ve cross-tab uyumu.
-• product-stats.ts: /api/products/stats sonucunu bir kez getirip tüm filtre bileşenlerine tek kaynaktan seçenek sağlar.
+* **GET /api/products**
+  Çoklu filtreleme + sıralama + sayfalama. Query parametreleri: kategori, marka, cpu, ram, storage, min/max fiyat, ekran, batarya, ağırlık aralıkları, sort, page, pageSize. Yanıt: ürün listesi + toplam sayfa bilgileri.
 
-Bileşenler:
-• FilterPanel (desktop sol panel) ve TopBar (mobil çekmece) filtreleri yönetir.
-• NLSearch doğal dil metnini parse-filters API’sine gönderir; gelen şemayı applyFromAI ile store’a uygular.
-• ProductCard ürün gösterimi ve favori/karşılaştırma aksiyonlarını içerir.
-• CompareDialog iki ürün seçildiğinde AI karşılaştırma çıktısını sunar.
-• AiSummaryDialog tek ürün için AI özetini gösterir.
-• SortDropdown ve FavoritesFilter, sırasıyla sıralama ve favori modlarını düzenler.
+* **GET /api/products/stats**
+  Filtre paneli için min/max değerler ve ayrık kümeler.
 
----
+* **GET /api/products/\:id**
+  Tekil ürün bilgisi.
 
-## 7) AI Entegrasyonu (Doğal Dil, Özet, Karşılaştırma)
+* **POST /api/ai/parse-filters**
+  Serbest metni normalize edip filtre şemasına çevirir. Örn: “30 bin altı, 16 GB RAM, i5” → { price: { max: 30000 }, ram\_gb: \[16], cpu: \["Intel i5"] }.
 
-openrouter.ts dosyası, OpenRouter API anahtarı ile model çağrılarını yapar. Tüm istek/yanıtlar günlük bazında JSONL dosyalara loglanır (ai-logs klasörü). Doğal dil filtrelemede, giriş metni normalize edilir (ör. “30 bin” → 30000, “15.6 inç” → 15.6). CPU, veri setindeki whitelist’e göre kanonik eşleşir ve cpus dizisi olarak döner. Tüm AI dönüşleri Zod ile doğrulandığından hatalı/bozuk JSON çıktıları erken aşamada yakalanır ve istemciye anlamlı bir hata iletilir.
+* **POST /api/ai/summarize**
+  Tek ürün için kısa teknik özet + artı/eksi maddeler + value-for-money derecelendirmesi.
 
-Özet ve karşılaştırma uçlarında model; yalnızca teknik alanları referans alır (name sadece gösterim amaçlıdır). Çıktı, artı/eksi maddeleri ile kullanıcıya anlaşılır bir özet sunar.
+* **POST /api/ai/compare**
+  İki ürünü karşılaştırır. Teknik tabloya göre güçlü/zayıf yönler + kısa özet döner.
 
 ---
 
-## 8) URL Senkronizasyonu ve Derin Bağlantılar
+## İstemci Mimarisi ve Durum Yönetimi
 
-use-sync-filters-with-url.ts ilk aşamada URL’yi okuyup store’u başlatır (URL → Store). Ardından store değiştikçe URL güncellenir (Store → URL). Birden çok parametre değeri desteklenir (category=X\&category=Y gibi). Aralıklar, istatistikteki varsayılan min/max’tan sapınca URL’ye yazılır. Böylece;
-• geri/ileri butonlarıyla gezinti bozulmaz,
-• filtreli sayfalar paylaşılabilir/yer imlerine eklenebilir.
+* **Filtre Store**: kategori, marka, cpu, ram, storage, fiyat/ekran/batarya/ağırlık aralıkları, sıralama. `applyFromAI` fonksiyonu ile doğal dilden gelen şema tek hamlede store’a uygulanır.
+* **Favoriler Store**: localStorage’ta kalıcıdır, sekmeler arası senkronize olur.
+* **Karşılaştırma Store**: en fazla iki ürün seçilebilir.
+* **İstatistik Store**: `/api/products/stats` çağrısını bir kez yapar, tüm filtre paneli için tek kaynağı sağlar.
+
+UI Bileşenleri:
+
+* **FilterPanel & TopBar**: filtreleri yönetir (desktop & mobil).
+* **NLSearch**: doğal dil arama girişi.
+* **ProductCard**: ürün kartı, favori/karşılaştırma aksiyonları.
+* **CompareDialog**: iki ürün AI karşılaştırma diyaloğu.
+* **AiSummaryDialog**: tek ürün AI özeti diyaloğu.
+* **SortDropdown & FavoritesFilter**: sıralama ve favori görünümü.
 
 ---
 
-## 9) Kullanıcı Akışları (Flow)
+## AI Entegrasyonu
 
-Listeleme ve Filtreleme Akışı
+* **Doğal Dil Arama**: Kullanıcının yazdığı metin normalize edilir (ör. “30 bin” → 30000, “15.6” → 15.6). CPU’lar whitelist ile eşleştirilir. Çıktı Zod ile doğrulanır.
+* **AI Özet**: Tek ürünün teknik detayları kısa bir “tldr” özetine dönüştürülür.
+* **AI Karşılaştırma**: İki ürün artı/eksi listeleri ile kıyaslanır, value-for-money değerlendirmesi yapılır.
+* Tüm AI çağrıları **OpenRouter** üzerinden yapılır. İstek/yanıtlar günlük bazlı JSONL dosyalara loglanır.
 
-1. Uygulama açılırken /api/products/stats çağrılır; filtre seçenekleri yüklenir.
-2. URL parametreleri varsa store’a işlenir; yoksa varsayılan durum kullanılır.
-3. Kullanıcı filtre seçer; store güncellenir; URL parametreleri eş zamanlı güncellenir.
-4. /api/products filtre parametreleriyle çağrılır ve liste güncellenir.
-5. Sıralama ve favori modları aynı akışa dâhil olarak listeyi yeniden üretir.
+---
 
-Doğal Dil Araması
+## URL Senkronizasyonu
 
-1. NLSearch’e metin girilir.
-2. /api/ai/parse-filters çağrısı yapılır; dönen şema applyFromAI ile store’a uygulanır.
-3. Store güncellenince /api/products yeniden tetiklenir ve liste yeni kriterlerle render edilir.
+Filtre ve sıralama durumu URL parametrelerine yazılır. İlk yüklemede URL → Store aktarımı yapılır; store değiştikçe Store → URL güncellemesi yapılır.
 
-AI Özet (tek ürün)
+Bu sayede:
 
-1. Kullanıcı ürün kartından “özet” aksiyonu ile dialogu açar.
-2. /api/ai/summarize, ürün ID’si ile çağrılır.
-3. dönen kısa özet ve artı/eksi maddeleri dialogda gösterilir.
+* geri/ileri navigasyon bozulmaz,
+* filtrelenmiş sayfalar paylaşılabilir veya yer imlerine eklenebilir.
 
-AI Karşılaştırma (iki ürün)
+---
+
+## Kullanıcı Akışları
+
+**Listeleme ve Filtreleme**
+
+1. Uygulama açıldığında `/api/products/stats` çağrılır.
+2. URL parametreleri varsa store’a işlenir.
+3. Kullanıcı filtre seçtiğinde store güncellenir, URL yazılır, `/api/products` yeniden çağrılır.
+
+**Doğal Dil Arama**
+
+1. Kullanıcı NLSearch’e metin yazar.
+2. `/api/ai/parse-filters` çağrılır.
+3. Dönen şema store’a uygulanır, ürün listesi güncellenir.
+
+**AI Özet**
+
+1. Kullanıcı ürün detayında özet ister.
+2. `/api/ai/summarize` çağrılır.
+3. Gelen JSON, kısa özet ve artı/eksi maddeler olarak gösterilir.
+
+**AI Karşılaştırma**
 
 1. Kullanıcı iki ürünü karşılaştırma sepetine ekler.
-2. CompareDialog açılır; /api/ai/compare çağrılır.
-3. Teknik tabloya dayalı artı/eksi ve kısa özet kullanıcıya sunulur.
+2. `/api/ai/compare` çağrılır.
+3. Diyalogda güçlü/zayıf yönler ve kısa özet gösterilir.
 
 ---
 
-## 10) Performans, Erişilebilirlik ve UX Notları
+## Kurulum ve Çalıştırma
 
-• App Router ile sayfalar server component yaklaşımıyla derli toplu yapılandırılmıştır; istemciye sadece gerekli interaktif kısımlar gönderilir.
-• Filtre değerleri tek bir istatistik kaynağından (stats) beslendiği için gereksiz tekrar isteklerden kaçınılır.
-• Favoriler localStorage ile kalıcıdır; rehidratasyon ve sekmeler arası senkron düşünülmüştür.
-• Bileşenler sade, anlaşılır; ikonlar (lucide-react) ve iletişimler (sonner) ile temel UX geri bildirimleri sunulur.
-• Erişilebilirlikte temel başlık/rol/label düzenleri gözetilmiştir; daha ileri ARIA iyileştirmeleri yol haritasındadır.
+Önkoşul: Node.js 20+
 
----
+1. Bağımlılıkları yükle: `pnpm install`
+2. `.env.local` dosyası oluştur:
 
-## 11) Kurulum, Ortam Değişkenleri ve Çalıştırma
+   * `OPENROUTER_API_KEY` (zorunlu)
+   * `USE_DB=false` (varsayılan)
+   * `USE_DB=true` + `DATABASE_URL=file:./dev.db` (DB modu için)
+   * `OPENROUTER_MODEL` (opsiyonel)
+3. JSON Modu: `pnpm dev` ile çalıştır.
+4. DB Modu:
 
-Önkoşul: Node.js 20 ve üzeri önerilir.
-
-Kurulum adımları:
-
-1. Bağımlılıkları yükleyin: pnpm install (ya da npm/yarn)
-2. Ortam değişkenleri dosyası oluşturun: .env.local
-
-Örnek .env.local içerikleri:
-• OPENROUTER\_API\_KEY: OpenRouter API anahtarınız
-• OPENROUTER\_MODEL: örnek “deepseek/deepseek-chat-v3-0324\:free”
-• REVALIDATE\_SECONDS: ISR/SSG revalidate saniyesi (opsiyonel)
-• USE\_DB: false (DB moduna geçmek için true; Prisma şeması eklenmelidir)
-
-Çalıştırma:
-• Geliştirme: pnpm dev ([http://localhost:3000](http://localhost:3000))
-• Prod’a hazırlık: pnpm build
-• Prod çalıştırma: pnpm start
+   * `npx prisma generate`
+   * `npx prisma db push`
+   * `node prisma/seed.js`
+   * `pnpm dev`
 
 ---
 
-## 12) Test ve Gözlemlenebilirlik
+## Test, Güvenlik ve Hata Yönetimi
 
-• Doğrulama: Zod ile API giriş/çıkışlarının tipleri güvence altına alınır.
-• Gözlemlenebilirlik: openrouter.ts, AI çağrılarının istek/yanıtlarını gün bazlı JSONL dosyalarına loglar; sorunların izlenmesi kolaylaşır.
-• Birim/E2E testleri için alt yapı kolay eklenebilir (Vitest/Playwright); yol haritasında belirtilmiştir.
-
----
-
-## 13) Güvenlik ve Hata Yönetimi
-
-• AI uçlarında yalnızca JSON kabul edilir; geçersiz JSON çıktılarında anlamlı hata döner.
-• API uçlarında NextResponse ve uygun HTTP durum kodları kullanılır.
-• Üretimde rate limit ve yetkilendirme eklenmesi önerilir (yol haritasında).
-• Ortam değişkenleri üzerinden hassas bilgiler (.env.local) saklanır; repoya dahil edilmez.
+* **Doğrulama**: Zod şemaları her uçta giriş/çıkışı doğrular.
+* **AI hataları**: Geçersiz JSON dönerse 502 hata verilir, anlamlı mesaj ile.
+* **Aralık hataları**: min > max durumunda 400 döner.
+* **Gözlemlenebilirlik**: AI çağrıları günlük JSONL dosyalarına loglanır.
+* **Güvenlik**: API anahtarları .env.local’de tutulur, repoya girmez.
 
 ---
 
-## 14) Bilinen Sınırlamalar
+## Bilinen Sınırlamalar
 
-• Varsayılan veri kaynağı dosya tabanlıdır (data/products.json); büyük veri setlerinde ya da gerçek zamanlı senaryolarda DB moduna geçmek gerekir.
-• Prisma/DB şeması ve migrasyonları bu repo içinde hazır değildir; ileride kolay adaptasyon için kablo çekilmiştir.
-• Erişilebilirlik, çok dillilik (i18n) ve test kapsaması temel seviyededir; yol haritasında derinleştirilecektir.
-
----
-
-## 15) Yol Haritası (Gelecek Geliştirmeler)
-
-• Prisma şeması ve migrasyonların eklenmesi; USE\_DB=true modunun tamamlanması
-• Rate limit, auth ve üretim-grade hataya dayanıklılık
-• Unit ve E2E testleri; CI/CD entegrasyonu
-• i18n (Türkçe/İngilizce)
-• Erişilebilirlik ve tema iyileştirmeleri
-• Gerçek ürün API’sine geçiş ve veri akışının soyutlanması
-• Meta/OG etiketleri ve görsel zenginleştirme (badge, ekran görüntüsü, demo gif)
+* JSON veri kaynağı gerçek dünyada yetersiz olabilir; DB modunda indeksleme ve cursor pagination önerilir.
+* Yetkilendirme henüz eklenmemiştir.
+* Görseller için placeholder stratejisi eklenmesi önerilir.
+* İ18 dil desteği eklenmesi.
 
 ---
 
-## 16) Neden Bu Tasarım? (Karar Gerekçeleri)
+## Yol Haritası
 
-• App Router + Server/Client bileşen ayrımı, boyutu düşük ve hızlı sayfalar sağlar; SEO uyumlu, erişilebilir bir iskelet sunar.
-• Zod ile “şema önce” yaklaşımı, API ve istemci arasındaki sözleşmeyi netleştirir; tip güvenliği kaliteyi yükseltir.
-• Zustand, React ekosisteminde hafif ve sezgisel bir durum yönetimi sunar; filtre/karşılaştırma/favori gibi bağımsız durumları sade şekilde yönetmeyi kolaylaştırır.
-• Tek istatistik ucu (stats) ile filtre seçeneklerinin tek kaynaktan beslenmesi, UI’da tutarlılık ve performans kazandırır.
-• AI fonksiyonlarının ayrık uçlarda sunulması (parse-filters, summarize, compare), yeteneklerin net sınırlarla test edilebilir ve geliştirilebilir olmasını sağlar.
-• URL senkronizasyonu, paylaşılabilir derin bağlantılar üretir; ürün keşif deneyimini modern web uygulamalarındaki beklenen seviyeye taşır.
+* GPU gibi yeni filtre alanlarının eklenmesi (CPU entegrasyonu ile aynı şablon).
+* Test altyapısının genişletilmesi (E2E testlerin eklenmesi)
+* Auth eklenmesi.
+
 
 ---
 
-Bu dokümantasyon, projeyi inceleyenlere hem teknik derinliği hem de ürün akışını net göstermeyi amaçlar. Daha fazla görsel, rozet veya demo gif alanını istersen ekleyebilirim; ancak bu haliyle “case study” olarak mimariyi, akışları, API sözleşmelerini ve tasarım gerekçelerini bütünüyle anlatır.
+## Neden Bu Tasarım?
+
+* **App Router + Server/Client ayrımı** SEO uyumlu, hızlı ve erişilebilir sayfalar sağlar.
+* **Zod** sayesinde uçtan uca tip güvenliği ve API sözleşmesi garanti altına alınır.
+* **Zustand** ile sade ama güçlü durum yönetimi, bağımsız state alanlarını kolay yönetmeyi sağlar.
+* **Tek istatistik ucu** ile filtre seçeneklerinin tek kaynaktan gelmesi, UI’da tutarlılık ve performans sağlar.
+* **AI fonksiyonlarının ayrı uçlarda sunulması**, kolay test edilebilirlik ve esneklik kazandırır.
+* **URL senkronu** kullanıcı deneyimini modern web uygulamalarına uygun hale getirir.
+
+---
+
