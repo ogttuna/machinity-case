@@ -166,6 +166,7 @@ Bu sayede:
 * **Aralık hataları**: min > max durumunda 400 döner.
 * **Gözlemlenebilirlik**: AI çağrıları günlük JSONL dosyalarına loglanır.
 * **Güvenlik**: API anahtarları .env.local’de tutulur, repoya girmez.
+* **Unit Testler** Vitest ile 
 
 ---
 
