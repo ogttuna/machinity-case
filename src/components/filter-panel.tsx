@@ -200,18 +200,13 @@ export function FilterPanel() {
                         </div>
                         <Slider
                             value={priceRange}
-                            onValueCommit={(val) => {
-                                const [lo, hi] = val as [number, number];
-                                if (lo === priceRange[0] && hi === priceRange[1]) return; // guard
-                                setPriceRange([lo, hi]);
-                            }}
+                            onValueChange={(val) => setPriceRange(val as [number, number])}
                             min={minPrice ?? 0}
                             max={maxPrice ?? 0}
                             step={100}
                             className="mb-2"
                             disabled={sliderDisabled}
                         />
-
                         <div className="flex justify-between text-sm text-muted-foreground">
               <span>
                 {sliderDisabled ? "—" : `${priceRange[0].toLocaleString("tr-TR")} ₺`}

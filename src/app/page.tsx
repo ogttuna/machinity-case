@@ -491,7 +491,7 @@ export default function Page() {
                         </>
                     )}
 
-                    {/* Sticky action bar: sadece compare açıkken gözüküyro */}
+                    {/* Sticky action bar: sadece compare açıkken */}
                     {enabled && (
                         <div
                             className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border bg-background/95 px-3 py-2 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/60"
